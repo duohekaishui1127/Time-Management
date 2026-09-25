@@ -27,16 +27,29 @@ class CanvasUI {
   constructor(canvas, system) {
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
-    this.width = system.windowWidth;
-    this.height = system.windowHeight;
-    this.dpr = system.pixelRatio || 1;
-
-    canvas.width = Math.floor(this.width * this.dpr);
-    canvas.height = Math.floor(this.height * this.dpr);
-    this.ctx.scale(this.dpr, this.dpr);
-
     this.hitAreas = [];
     this.theme = CHAPTER_THEMES.college;
+    this.resize(system);
+  }
+
+  resize(system) {
+    this.width = system.windowWidth;
+    this.fullHeight = system.windowHeight;
+    this.dpr = system.pixelRatio || 1;
+    const safe = system.safeArea || {};
+    this.topInset = clamp(Number(safe.top) || 0, 0, Math.min(80, this.fullHeight / 4));
+    this.bottomInset = clamp(this.fullHeight - (Number(safe.bottom) || this.fullHeight), 0, Math.min(80, this.fullHeight / 4));
+    const usableHeight = this.fullHeight - this.topInset - this.bottomInset;
+    // Preserve readable card sizes on short screens while keeping controls inside the safe area.
+    this.height = Math.max(568, usableHeight);
+    this.verticalScale = usableHeight / this.height;
+
+    this.canvas.width = Math.floor(this.width * this.dpr);
+    this.canvas.height = Math.floor(this.fullHeight * this.dpr);
+    if (this.ctx.setTransform) this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    else this.ctx.scale(this.dpr, this.dpr);
+    this.ctx.translate(0, this.topInset);
+    this.ctx.scale(1, this.verticalScale);
   }
 
   setTheme(chapter) {
@@ -45,15 +58,17 @@ class CanvasUI {
 
   begin() {
     this.hitAreas = [];
-    this.ctx.clearRect(0, 0, this.width, this.height);
+    const top = -this.topInset / this.verticalScale;
+    this.ctx.clearRect(0, top, this.width, this.fullHeight / this.verticalScale);
     this.ctx.fillStyle = COLORS.bg;
-    this.ctx.fillRect(0, 0, this.width, this.height);
+    this.ctx.fillRect(0, top, this.width, this.fullHeight / this.verticalScale);
   }
 
   hitTest(x, y) {
+    const logicalY = (y - this.topInset) / this.verticalScale;
     for (let i = this.hitAreas.length - 1; i >= 0; i--) {
       const h = this.hitAreas[i];
-      if (x >= h.x && x <= h.x + h.w && y >= h.y && y <= h.y + h.h) return h;
+      if (x >= h.x && x <= h.x + h.w && logicalY >= h.y && logicalY <= h.y + h.h) return h;
     }
     return null;
   }
@@ -152,7 +167,8 @@ class CanvasUI {
     this.setTheme(pageLevels[0] && pageLevels[0].level.chapter);
     this.renderHeader("选择关卡", vm.chapterTitle);
     this.text("已完成 " + vm.completedCount + " / " + vm.totalCount, 18, 89, 11, COLORS.muted, 650);
-    this.text("继续你的时间挑战", this.width - 18, 89, 10, this.theme.accent, 600, "right");
+    this.text(vm.saveWarning ? "⚠ 存档未保存" : "继续你的时间挑战", this.width - 18, 89, 10,
+      vm.saveWarning ? COLORS.danger : this.theme.accent, 600, "right");
     this.roundedRect(18, 96, this.width - 36, 4, 2, COLORS.line, null);
     if (vm.completedCount > 0) {
       this.roundedRect(18, 96, (this.width - 36) * vm.completedCount / vm.totalCount, 4, 2, this.theme.accent, null);
@@ -185,7 +201,7 @@ class CanvasUI {
       } else {
         this.text("🔒", x + 12, y + 51, 16, COLORS.muted, 600);
         this.text("尚未解锁", x + 39, y + 49, 13, COLORS.muted, 650, "left", cardW - 50);
-        this.text("通关或广告解锁", x + 12, y + cardH - 11, 9, COLORS.muted, 500);
+        this.text(vm.rewardAvailable ? "通关或广告解锁" : "通关前一关解锁", x + 12, y + cardH - 11, 9, COLORS.muted, 500);
       }
 
       this.addHit("level", x, y, cardW, cardH, {
@@ -206,7 +222,7 @@ class CanvasUI {
       this.text("下一页 →", this.width - 57, y + 23, 11, vm.page + 1 < vm.totalPages ? this.theme.accent : COLORS.locked, 650, "center");
       if (vm.page + 1 < vm.totalPages) this.addHit("level-page-next", this.width - 96, y, 78, 36);
     } else {
-      this.text("通关自动解锁下一关 · 广告可提前解锁", 18, this.height - 18, 10, COLORS.muted, 500, "left", this.width - 36);
+      this.text(vm.rewardAvailable ? "通关自动解锁下一关 · 广告可提前解锁" : "通关自动解锁下一关", 18, this.height - 18, 10, COLORS.muted, 500, "left", this.width - 36);
     }
   }
 
@@ -218,6 +234,7 @@ class CanvasUI {
     this.roundedRect(18, 76, 72, 28, 10, COLORS.panel, null);
     this.text("← 选关", 54, 95, 11, this.theme.accent, 700, "center");
     this.addHit("back", 18, 76, 72, 28);
+    if (vm.saveWarning) this.text("⚠ 存档未保存", this.width - 18, 95, 10, COLORS.danger, 650, "right");
 
     const gx = 18, gy = 114, gw = this.width - 36, gh = 108;
     this.roundedRect(gx, gy, gw, gh, 18, COLORS.panel, COLORS.line);

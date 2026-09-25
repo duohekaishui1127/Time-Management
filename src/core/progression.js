@@ -1,8 +1,22 @@
+function recordMap(value) {
+  return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+function own(map, key) {
+  return Object.prototype.hasOwnProperty.call(map, key) ? map[key] : undefined;
+}
+
+function nonNegativeNumber(value) {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
+}
+
 class Progression {
   constructor(platform, levels, options) {
     this.platform = platform;
     this.levels = levels;
     this.options = options;
+    this.lastSaveSucceeded = true;
+    this.storageReadOnly = false;
     this.state = this._load();
   }
 
@@ -24,45 +38,72 @@ class Progression {
   }
 
   _migrateLegacy(saved) {
-    if (!saved || typeof saved !== "object") return null;
+    if (!saved || typeof saved !== "object" || Array.isArray(saved)) return null;
 
     return {
       version: this.options.version,
-      unlocked: saved.unlocked || {},
-      completed: saved.completed || {},
-      bestStars: saved.bestStars || saved.stars || {},
-      bestScore: saved.bestScore || {},
-      attempts: saved.attempts || {},
-      rewardUnlocked: saved.rewardUnlocked || {},
+      unlocked: saved.unlocked,
+      completed: saved.completed,
+      bestStars: saved.bestStars || saved.stars,
+      bestScore: saved.bestScore,
+      attempts: saved.attempts,
+      rewardUnlocked: saved.rewardUnlocked,
     };
   }
 
-  _load() {
-    let state = this.platform.getStorage(this.options.key);
+  _sanitize(saved) {
+    const state = this._defaultState();
+    if (!saved || typeof saved !== "object" || Array.isArray(saved)) return state;
 
-    if (!state) {
+    const unlocked = recordMap(saved.unlocked);
+    const completed = recordMap(saved.completed);
+    const bestStars = recordMap(saved.bestStars);
+    const bestScore = recordMap(saved.bestScore);
+    const attempts = recordMap(saved.attempts);
+    const rewardUnlocked = recordMap(saved.rewardUnlocked);
+
+    this.levels.forEach((level) => {
+      const id = level.id;
+      if (own(unlocked, id) === true) state.unlocked[id] = true;
+      if (own(completed, id) === true) {
+        state.completed[id] = true;
+        state.unlocked[id] = true;
+      }
+      const stars = own(bestStars, id);
+      if (Number.isInteger(stars) && stars >= 1 && stars <= 3) state.bestStars[id] = stars;
+      const score = nonNegativeNumber(own(bestScore, id));
+      if (score) state.bestScore[id] = score;
+      const count = nonNegativeNumber(own(attempts, id));
+      if (count) state.attempts[id] = Math.min(Number.MAX_SAFE_INTEGER, Math.floor(count));
+      const rewardTime = nonNegativeNumber(own(rewardUnlocked, id));
+      if (rewardTime) {
+        state.rewardUnlocked[id] = rewardTime;
+        state.unlocked[id] = true;
+      }
+    });
+
+    return state;
+  }
+
+  _load() {
+    let saved = this.platform.getStorage(this.options.key);
+
+    if (!saved) {
       for (const key of this.options.legacyKeys || []) {
         const legacy = this.platform.getStorage(key);
         if (legacy) {
-          state = this._migrateLegacy(legacy);
+          saved = this._migrateLegacy(legacy);
           break;
         }
       }
     }
 
-    if (!state || typeof state !== "object") state = this._defaultState();
-    if (state.version !== this.options.version) state = this._migrateLegacy(state) || this._defaultState();
-
-    state.unlocked = state.unlocked || {};
-    state.completed = state.completed || {};
-    state.bestStars = state.bestStars || {};
-    state.bestScore = state.bestScore || {};
-    state.attempts = state.attempts || {};
-    state.rewardUnlocked = state.rewardUnlocked || {};
-
-    this.levels.slice(0, this.options.defaultUnlockCount).forEach((level) => {
-      state.unlocked[level.id] = true;
-    });
+    // A rollback must not replace a save written by a newer game version.
+    this.storageReadOnly = !!saved
+      && typeof saved === "object"
+      && Number.isInteger(saved.version)
+      && saved.version > this.options.version;
+    const state = this._sanitize(this._migrateLegacy(saved));
 
     // Released levels may be inserted after a level the player already completed.
     this.levels.forEach((level, index) => {
@@ -71,12 +112,15 @@ class Progression {
       }
     });
 
-    this.platform.setStorage(this.options.key, state);
+    this.lastSaveSucceeded = !this.storageReadOnly
+      && this.platform.setStorage(this.options.key, state) !== false;
     return state;
   }
 
   _save() {
-    this.platform.setStorage(this.options.key, this.state);
+    this.lastSaveSucceeded = !this.storageReadOnly
+      && this.platform.setStorage(this.options.key, this.state) !== false;
+    return this.lastSaveSucceeded;
   }
 
   isUnlocked(levelId) {
@@ -112,18 +156,18 @@ class Progression {
       }
     }
 
-    this._save();
+    return this._save();
   }
 
   unlockByReward(levelId) {
     this.state.unlocked[levelId] = true;
     this.state.rewardUnlocked[levelId] = Date.now();
-    this._save();
+    return this._save();
   }
 
   resetForDebug() {
     this.state = this._defaultState();
-    this._save();
+    return this._save();
   }
 }
 

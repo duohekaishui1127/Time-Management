@@ -50,8 +50,13 @@ class GameApp {
 
     this.platform.enableShare(() => this.getSharePayload());
     this.platform.onTouchStart((event) => this.onTouch(event));
+    this.platform.onWindowResize((system) => {
+      this.ui.resize(system);
+      this.render();
+    });
     this.applyLaunchQuery();
     this.render();
+    this.warnIfSaveFailed();
   }
 
   applyLaunchQuery() {
@@ -72,6 +77,14 @@ class GameApp {
 
   currentLevel() {
     return this.levels[this.state.currentLevelIndex];
+  }
+
+  warnIfSaveFailed() {
+    if (this.progress.lastSaveSucceeded || this.saveWarningShown) return;
+    this.saveWarningShown = true;
+    this.platform.toast(this.progress.storageReadOnly
+      ? "检测到较新版本存档，当前版本无法保存"
+      : "存档暂时不可用，进度可能无法保存");
   }
 
   render() {
@@ -114,6 +127,8 @@ class GameApp {
       page,
       totalPages,
       levels: pageLevels,
+      rewardAvailable: this.platform.canOfferRewardedVideo(),
+      saveWarning: !this.progress.lastSaveSucceeded,
     };
   }
 
@@ -129,6 +144,7 @@ class GameApp {
       cardOrder: this.state.cardOrder,
       taskPage: this.state.taskPage,
       goalLocationName: goalLocation ? goalLocation.name : level.goal.endLocation,
+      saveWarning: !this.progress.lastSaveSucceeded,
     };
   }
 
@@ -178,6 +194,7 @@ class GameApp {
     this.state.sheetExpanded = false;
     this.state.timelinePage = 0;
     this.progress.recordAttempt(this.currentLevel().id, result);
+    this.warnIfSaveFailed();
     this.platform.haptic();
     this.render();
   }
@@ -190,6 +207,15 @@ class GameApp {
 
     this.state.busy = true;
     try {
+      if (!this.platform.canOfferRewardedVideo()) {
+        await this.platform.modal({
+          title: "第 " + (index + 1) + " 关尚未解锁",
+          content: "通关前面的关卡即可免费解锁《" + level.name + "》。",
+          showCancel: false,
+        });
+        return;
+      }
+
       const wantsReward = await this.platform.modal({
         title: "第 " + (index + 1) + " 关尚未解锁",
         content:
@@ -205,8 +231,9 @@ class GameApp {
 
       const rewarded = await this.platform.showRewardedVideo();
       if (rewarded) {
-        this.progress.unlockByReward(level.id);
-        this.platform.toast("已提前解锁");
+        const saved = this.progress.unlockByReward(level.id);
+        if (saved) this.platform.toast("已提前解锁");
+        else this.warnIfSaveFailed();
       }
     } finally {
       this.state.busy = false;
@@ -235,7 +262,10 @@ class GameApp {
 
     if (!touch) return;
 
-    const hit = this.ui.hitTest(touch.clientX, touch.clientY);
+    const x = Number.isFinite(touch.clientX) ? touch.clientX : touch.x;
+    const y = Number.isFinite(touch.clientY) ? touch.clientY : touch.y;
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    const hit = this.ui.hitTest(x, y);
     if (hit) this.handleHit(hit);
   }
 

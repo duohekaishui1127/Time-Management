@@ -24,7 +24,7 @@ assert(validateLevelData({ schemaVersion: 1, levels: [badEvent] }).errors.some((
 // Every task must remain tappable above the fixed footer on short screens.
 function mockCanvas() {
   const ctx = {};
-  for (const name of ["scale", "clearRect", "fillRect", "beginPath", "moveTo", "arcTo", "closePath", "fill", "stroke", "fillText"]) {
+  for (const name of ["scale", "translate", "clearRect", "fillRect", "beginPath", "moveTo", "arcTo", "closePath", "fill", "stroke", "fillText"]) {
     ctx[name] = () => {};
   }
   ctx.measureText = (value) => ({ width: String(value).length * 7 });
@@ -69,6 +69,35 @@ levelSelectUI.renderLevelSelect({
 });
 assert(levelSelectUI.hitAreas.filter((area) => area.id === "level").every((area) => area.y + area.h <= 568 - 58));
 assert(levelSelectUI.hitAreas.some((area) => area.id === "level-page-next"));
+
+// Canvas controls stay inside notched-screen safe areas, including after resize.
+const safeCanvas = mockCanvas();
+const safeUI = new CanvasUI(safeCanvas, {
+  windowWidth: 320, windowHeight: 568, pixelRatio: 1,
+  safeArea: { top: 44, bottom: 534 },
+});
+assert.equal(safeUI.height, 568);
+assert(safeUI.verticalScale < 1);
+safeUI.begin();
+safeUI.renderLevelSelect({
+  chapterTitle: "测试章节", completedCount: 0, totalCount: levelData.levels.length,
+  page: 0, totalPages: 4, rewardAvailable: false,
+  levels: levelData.levels.slice(0, 10).map((level, index) => ({
+    index, level, unlocked: index < 3, completed: false, stars: 0, attempts: 0,
+  })),
+});
+const safeNext = safeUI.hitAreas.find((area) => area.id === "level-page-next");
+assert(safeNext);
+assert.equal(safeUI.hitTest(safeNext.x + 10, 44 + (safeNext.y + 10) * safeUI.verticalScale).id, "level-page-next");
+assert.equal(safeUI.hitTest(safeNext.x + 10, 10), null);
+assert(44 + (safeNext.y + safeNext.h) * safeUI.verticalScale <= 534);
+safeUI.resize({
+  windowWidth: 390, windowHeight: 844, pixelRatio: 2,
+  safeArea: { top: 47, bottom: 810 },
+});
+assert.equal(safeCanvas.width, 780);
+assert.equal(safeCanvas.height, 1688);
+assert.equal(safeUI.verticalScale, 1);
 
 const sixTaskOrder = ["deck", "demo", "sample", "passes", "drinks", "screen"];
 const sixTaskResult = simulateLevel(sixTasks, sixTaskOrder);

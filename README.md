@@ -31,7 +31,7 @@ tools/                 关卡穷举验证和回归测试
 npm run check
 ```
 
-`npm run check` 会校验关卡数据、穷举每关的任务顺序并确认至少有一个三星解，还会运行存档、单向路线和短屏布局回归测试。GitHub 推送和拉取请求也会执行相同检查。项目没有第三方运行依赖。
+`npm run check` 会校验关卡数据、穷举每关的任务顺序并确认至少有一个三星解，还会运行存档、单向路线、短屏布局、广告回调和启动交互回归测试。GitHub 推送和拉取请求也会执行相同检查。项目没有第三方运行依赖。
 
 ## 新增关卡
 
@@ -47,4 +47,4 @@ npm run check
 
 存档键为 `today_in_time_progress_v2`，启动时会迁移旧键 `today_in_time_progress_v1`，保留解锁、通关和星级数据。关卡 ID 一旦发布应保持不变。加载旧存档时，会根据已通关关卡重新解锁其下一关，因此在已发布内容之间插入关卡也不会让新关卡永久锁住；调整已发布关卡的顺序或评分仍需单独评估玩家进度。
 
-建议每次发布前运行 `npm run check`、固定并验证微信基础库版本，并为发布提交打 Git 标签。当前 `project.config.json` 仍使用 `libVersion: "latest"`，正式发布前应按实测环境固定版本。
+正式发布前运行 `npm run release:check`，并按 [发布检查清单](docs/RELEASE.md) 完成真机和公众平台验收。当前 `project.config.json` 保留演示 AppID 和 `libVersion: "latest"`，发布预检会提示配置；请在实测后替换。

@@ -3,7 +3,8 @@
   "private": true,
   "scripts": {
     "verify:levels": "node tools/verify-levels.js",
-    "test": "node tools/test-progression.js && node tools/test-core.js",
-    "check": "npm run verify:levels && npm test"
+    "test": "node tools/test-progression.js && node tools/test-core.js && node tools/test-platform.js && node tools/test-app.js",
+    "check": "npm run verify:levels && npm test",
+    "release:check": "npm run check && node tools/check-release.js"
   }
 }

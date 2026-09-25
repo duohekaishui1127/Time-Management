@@ -11,3 +11,6 @@ jobs:
         with:
           node-version: "22"
       - run: npm run check
+      - name: Check release config on version tags
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: node tools/check-release.js
