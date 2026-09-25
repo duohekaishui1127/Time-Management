@@ -49,7 +49,7 @@ function shortestTravel(graph, from, to) {
     });
   }
 
-  throw new Error("没有配置从 " + from + " 到 " + to + " 的可达路线");
+  return null;
 }
 
 function locationName(level, id) {
@@ -165,6 +165,10 @@ function simulateLevel(originalLevel, taskOrder) {
 
       if (task.location && task.location !== currentLocation) {
         const travel = shortestTravel(graph, currentLocation, task.location);
+        if (!travel) {
+          violations.push("无法从 " + locationName(level, currentLocation) + " 到达 " + locationName(level, task.location));
+          break;
+        }
         if (travel.duration > 0) {
           timeline.push({
             type: "travel",
@@ -232,15 +236,19 @@ function simulateLevel(originalLevel, taskOrder) {
 
   if (!violations.length && level.goal.endLocation && currentLocation !== level.goal.endLocation) {
     const travel = shortestTravel(graph, currentLocation, level.goal.endLocation);
-    timeline.push({
-      type: "travel",
-      start: time,
-      end: time + travel.duration,
-      text: locationName(level, currentLocation) + " → " + locationName(level, level.goal.endLocation),
-    });
-    time += travel.duration;
-    travelMinutes += travel.duration;
-    currentLocation = level.goal.endLocation;
+    if (!travel) {
+      violations.push("无法从 " + locationName(level, currentLocation) + " 到达 " + locationName(level, level.goal.endLocation));
+    } else {
+      timeline.push({
+        type: "travel",
+        start: time,
+        end: time + travel.duration,
+        text: locationName(level, currentLocation) + " → " + locationName(level, level.goal.endLocation),
+      });
+      time += travel.duration;
+      travelMinutes += travel.duration;
+      currentLocation = level.goal.endLocation;
+    }
   }
 
   const effectiveDeadlineMinutes = parseTime(level.goal.deadline);

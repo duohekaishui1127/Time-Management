@@ -224,12 +224,20 @@ class CanvasUI {
     const cardW = (this.width - 36 - gap) / 2;
     const cardH = 86;
 
-    remaining.forEach((id, idx) => {
+    const by = this.height - 84;
+    const cardTop = taskStartY + 12;
+    const navY = by - 35;
+    const rowsPerPage = Math.max(1, Math.floor((navY - 10 - cardTop + 9) / (cardH + 9)));
+    const pageSize = cols * rowsPerPage;
+    const totalPages = Math.max(1, Math.ceil(remaining.length / pageSize));
+    const page = clamp(vm.taskPage || 0, 0, totalPages - 1);
+
+    remaining.slice(page * pageSize, (page + 1) * pageSize).forEach((id, idx) => {
       const task = level.tasks.find((t) => t.id === id);
       const col = idx % cols;
       const row = Math.floor(idx / cols);
       const x = 18 + col * (cardW + gap);
-      const y = taskStartY + 12 + row * (cardH + 9);
+      const y = cardTop + row * (cardH + 9);
 
       this.roundedRect(x, y, cardW, cardH, 16, COLORS.panel, COLORS.line);
       this.text(task.icon || "◻️", x + 14, y + 30, 20, COLORS.ink, 400);
@@ -247,7 +255,17 @@ class CanvasUI {
       this.addHit("task", x, y, cardW, cardH, { id });
     });
 
-    const by = this.height - 84;
+    if (totalPages > 1) {
+      this.text("← 上一页", 54, navY + 19, 11, page > 0 ? COLORS.ink : COLORS.locked, 600, "center");
+      if (page > 0) this.addHit("task-page-prev", 18, navY, 72, 28);
+      this.text((page + 1) + " / " + totalPages, this.width / 2, navY + 19, 11, COLORS.muted, 600, "center");
+      this.text("下一页 →", this.width - 54, navY + 19, 11, page + 1 < totalPages ? COLORS.ink : COLORS.locked, 600, "center");
+      if (page + 1 < totalPages) this.addHit("task-page-next", this.width - 90, navY, 72, 28);
+    } else if (remaining.length === 0) {
+      this.text("全部任务已安排", this.width / 2, cardTop + 42, 13, COLORS.muted, 600, "center");
+    }
+
+
     this.roundedRect(12, by, this.width - 24, 76, 20, "rgba(255,255,255,0.97)", COLORS.line);
 
     this.roundedRect(22, by + 13, 60, 48, 14, COLORS.panel2, null);
@@ -313,23 +331,36 @@ class CanvasUI {
     if (vm.expanded) {
       const b = r.scoreBreakdown;
       this.text(
-        "评分  基础 " + b.base
-          + "  + 提前 " + b.earlyBonus
-          + "  - 等待 " + b.waitingPenalty
-          + "  - 迟到 " + b.latePenalty,
+        "基础" + b.base
+          + " +早到" + b.earlyBonus
+          + " -等待" + b.waitingPenalty
+          + " -迟到" + b.latePenalty
+          + " -违规" + b.violationPenalty
+          + " =" + b.final,
         20,
         detailY + 62,
-        10,
+        9,
         COLORS.muted,
         600
       );
 
       const timeline = vm.timeline;
-      const max = Math.min(timeline.length, 7);
-      for (let i = 0; i < max; i++) {
-        const item = timeline[i];
-        this.text(item.timeText, 22, detailY + 92 + i * 29, 10, COLORS.muted, 600);
-        this.text(item.text, 108, detailY + 92 + i * 29, 11, COLORS.ink, 500);
+      const bottom = this.height - 74;
+      const firstLineY = detailY + 92;
+      const navY = bottom - 40;
+      const pageSize = Math.max(1, Math.floor((navY - 12 - firstLineY) / 29) + 1);
+      const totalPages = Math.max(1, Math.ceil(timeline.length / pageSize));
+      const page = clamp(vm.timelinePage || 0, 0, totalPages - 1);
+      timeline.slice(page * pageSize, (page + 1) * pageSize).forEach((item, i) => {
+        this.text(item.timeText, 22, firstLineY + i * 29, 10, COLORS.muted, 600);
+        this.text(item.text, 108, firstLineY + i * 29, 11, COLORS.ink, 500);
+      });
+      if (totalPages > 1) {
+        this.text("← 上一页", 56, navY + 19, 11, page > 0 ? COLORS.ink : COLORS.locked, 600, "center");
+        if (page > 0) this.addHit("timeline-page-prev", 20, navY, 72, 28);
+        this.text((page + 1) + " / " + totalPages, this.width / 2, navY + 19, 11, COLORS.muted, 600, "center");
+        this.text("下一页 →", this.width - 56, navY + 19, 11, page + 1 < totalPages ? COLORS.ink : COLORS.locked, 600, "center");
+        if (page + 1 < totalPages) this.addHit("timeline-page-next", this.width - 92, navY, 72, 28);
       }
     }
 

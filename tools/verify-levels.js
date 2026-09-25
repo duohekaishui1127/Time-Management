@@ -36,12 +36,19 @@ levelData.levels.forEach((level, index) => {
   for (const order of permutations(ids.slice())) {
     const result = simulateLevel(level, order);
     if (
-      best === null
-      || result.score > best.result.score
-      || (result.score === best.result.score && result.arrivalTime < best.result.arrivalTime)
+      result.success
+      && (best === null
+        || result.score > best.result.score
+        || (result.score === best.result.score && result.arrivalTime < best.result.arrivalTime))
     ) {
       best = { order: order.slice(), result };
     }
+  }
+
+  if (!best) {
+    failed = true;
+    console.error(String(index + 1).padStart(2, "0"), level.name, "| ERROR: 不存在通关顺序");
+    return;
   }
 
   const taskNames = best.order.map((id) => level.tasks.find((task) => task.id === id).name);
@@ -54,7 +61,7 @@ levelData.levels.forEach((level, index) => {
     "|", taskNames.join(" -> ")
   );
 
-  if (!best.result.success || best.result.stars < 3) {
+  if (best.result.stars < 3) {
     failed = true;
     console.error("  ERROR: 当前关卡不存在三星解");
   }

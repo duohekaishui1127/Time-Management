@@ -1,9 +1,9 @@
 {
-  "description": "《今天来得及吗？》微信小游戏 MVP v2",
+  "description": "《今天来得及吗？》微信小游戏",
   "compileType": "game",
   "libVersion": "latest",
   "appid": "touristappid",
-  "projectname": "today-in-time-wechat-game-v2",
+  "projectname": "today-in-time",
   "setting": {
     "es6": true,
     "enhance": true,

@@ -86,11 +86,13 @@ function validateLevelData(levelData, options) {
   if (!levelData || !Array.isArray(levelData.levels) || levelData.levels.length === 0) {
     return { errors: ["levels 必须是非空数组"], warnings };
   }
+  if (levelData.schemaVersion !== 1) errors.push("不支持的关卡 schemaVersion: " + levelData.schemaVersion);
 
   assertUnique(levelData.levels, "id", "关卡", { id: "root" }, errors);
 
   levelData.levels.forEach((level) => {
     if (!level.name) addError(errors, level, "缺少关卡名称");
+    if (!level.chapter) addError(errors, level, "缺少 chapter");
     if (!level.timeline || !level.timeline.start) addError(errors, level, "缺少 timeline.start");
     if (!level.goal || !level.goal.deadline || !level.goal.endLocation) {
       addError(errors, level, "goal 必须包含 deadline 和 endLocation");
@@ -160,6 +162,9 @@ function validateLevelData(levelData, options) {
       (task.minGapAfter || []).forEach((gap) => {
         if (!taskIds.has(gap.taskId)) addError(errors, level, "任务 " + task.id + " minGapAfter 引用不存在: " + gap.taskId);
         if (!Number.isFinite(gap.minutes) || gap.minutes < 0) addError(errors, level, "任务 " + task.id + " minGapAfter.minutes 非法");
+        if (!(task.dependsOn || []).includes(gap.taskId)) {
+          addError(errors, level, "任务 " + task.id + " 的 minGapAfter 必须同时声明 dependsOn: " + gap.taskId);
+        }
       });
     });
 
@@ -180,6 +185,9 @@ function validateLevelData(levelData, options) {
         if (action.type === "modify_task_duration" && !taskIds.has(action.taskId)) {
           addError(errors, level, "事件 " + event.id + " 引用不存在的 taskId: " + action.taskId);
         }
+        if (action.type === "modify_travel_time" || action.type === "modify_task_duration") {
+          if (!Number.isFinite(action.delta)) addError(errors, level, "事件 " + event.id + " delta 必须是有限数值");
+        }
         if (action.type === "modify_deadline") {
           try { parseTime(action.newDeadline); }
           catch (error) { addError(errors, level, "事件 " + event.id + ": " + error.message); }
@@ -187,11 +195,17 @@ function validateLevelData(levelData, options) {
       });
     });
 
-    const thresholds = level.scoring && level.scoring.starThresholds;
-    if (!Array.isArray(thresholds) || thresholds.length !== 3) {
-      addError(errors, level, "scoring.starThresholds 必须包含 3 个数值");
-    } else if (!(thresholds[0] <= thresholds[1] && thresholds[1] <= thresholds[2])) {
-      addError(errors, level, "scoring.starThresholds 必须递增");
+    const scoring = level.scoring || {};
+    for (const key of ["successBase", "failureBase", "earlyBonusPerMinute", "waitingPenaltyPerMinute", "latePenaltyPerMinute", "violationPenalty"]) {
+      if (scoring[key] !== undefined && (!Number.isFinite(scoring[key]) || scoring[key] < 0)) {
+        addError(errors, level, "scoring." + key + " 必须是非负有限数值");
+      }
+    }
+    const thresholds = scoring.starThresholds;
+    if (!Array.isArray(thresholds) || thresholds.length !== 3 || !thresholds.every(Number.isFinite)) {
+      addError(errors, level, "scoring.starThresholds 必须包含 3 个有限数值");
+    } else if (!(thresholds[0] < thresholds[1] && thresholds[1] < thresholds[2])) {
+      addError(errors, level, "scoring.starThresholds 必须严格递增");
     }
 
     const graph = buildUndirectedGraph(level);

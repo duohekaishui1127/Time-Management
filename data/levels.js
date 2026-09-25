@@ -1156,3 +1156,9 @@ module.exports = {
     }
   ]
 };
+
+module.exports.levels = module.exports.levels.concat(
+  require("./city-levels"),
+  require("./work-levels"),
+  require("./travel-levels")
+);

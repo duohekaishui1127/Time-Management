@@ -1,4 +1,5 @@
 const levelData = require("../data/levels");
+const chapterTitles = require("../data/chapters");
 const config = require("./config");
 const { assertValidLevelData } = require("./core/level-validator");
 const { simulateLevel, describeResult, timelineToView } = require("./core/game-engine");
@@ -41,7 +42,9 @@ class GameApp {
       cardOrder: [],
       result: null,
       sheetExpanded: false,
+      timelinePage: 0,
       levelPage: 0,
+      taskPage: 0,
       busy: false,
     };
 
@@ -105,7 +108,7 @@ class GameApp {
     });
 
     return {
-      chapterTitle: "大学生的一天 · 第一章",
+      chapterTitle: chapterTitles[pageLevels[0].level.chapter] || pageLevels[0].level.chapter,
       completedCount: this.levels.filter((level) => this.progress.isCompleted(level.id)).length,
       totalCount: this.levels.length,
       page,
@@ -119,11 +122,12 @@ class GameApp {
     const goalLocation = level.locations.find((x) => x.id === level.goal.endLocation);
 
     return {
-      chapterTitle: "第一章 · 大学生的一天",
+      chapterTitle: chapterTitles[level.chapter] || level.chapter,
       level,
       levelIndex: this.state.currentLevelIndex,
       selectedIds: this.state.selectedIds,
       cardOrder: this.state.cardOrder,
+      taskPage: this.state.taskPage,
       goalLocationName: goalLocation ? goalLocation.name : level.goal.endLocation,
     };
   }
@@ -137,6 +141,7 @@ class GameApp {
       description: describeResult(this.currentLevel(), result),
       timeline: timelineToView(result.timeline),
       expanded: this.state.sheetExpanded,
+      timelinePage: this.state.timelinePage,
       nextText: result.success && nextIndex < this.levels.length ? "下一关 →" : "返回关卡",
     };
   }
@@ -149,8 +154,10 @@ class GameApp {
     this.state.currentLevelIndex = index;
     this.state.selectedIds = [];
     this.state.cardOrder = shuffle(level.tasks.map((task) => task.id));
+    this.state.taskPage = 0;
     this.state.result = null;
     this.state.sheetExpanded = false;
+    this.state.timelinePage = 0;
     this.render();
   }
 
@@ -158,8 +165,10 @@ class GameApp {
     const level = this.currentLevel();
     this.state.selectedIds = [];
     this.state.cardOrder = shuffle(level.tasks.map((task) => task.id));
+    this.state.taskPage = 0;
     this.state.result = null;
     this.state.sheetExpanded = false;
+    this.state.timelinePage = 0;
     this.render();
   }
 
@@ -167,6 +176,7 @@ class GameApp {
     const result = simulateLevel(this.currentLevel(), this.state.selectedIds);
     this.state.result = result;
     this.state.sheetExpanded = false;
+    this.state.timelinePage = 0;
     this.progress.recordAttempt(this.currentLevel().id, result);
     this.platform.haptic();
     this.render();
@@ -249,8 +259,21 @@ class GameApp {
   }
 
   handleResultHit(hit) {
+    if (hit.id === "timeline-page-prev") {
+      this.state.timelinePage = Math.max(0, this.state.timelinePage - 1);
+      this.render();
+      return;
+    }
+
+    if (hit.id === "timeline-page-next") {
+      this.state.timelinePage += 1;
+      this.render();
+      return;
+    }
+
     if (hit.id === "toggle-detail") {
       this.state.sheetExpanded = !this.state.sheetExpanded;
+      this.state.timelinePage = 0;
       this.render();
       return;
     }
@@ -304,9 +327,22 @@ class GameApp {
       return;
     }
 
+    if (hit.id === "task-page-prev") {
+      this.state.taskPage = Math.max(0, this.state.taskPage - 1);
+      this.render();
+      return;
+    }
+
+    if (hit.id === "task-page-next") {
+      this.state.taskPage += 1;
+      this.render();
+      return;
+    }
+
     if (hit.id === "task") {
       if (!this.state.selectedIds.includes(hit.data.id)) {
         this.state.selectedIds.push(hit.data.id);
+        this.state.taskPage = 0;
         this.platform.haptic();
         this.render();
       }
@@ -315,12 +351,14 @@ class GameApp {
 
     if (hit.id === "remove-selected") {
       this.state.selectedIds = this.state.selectedIds.filter((id) => id !== hit.data.id);
+      this.state.taskPage = 0;
       this.render();
       return;
     }
 
     if (hit.id === "undo") {
       this.state.selectedIds.pop();
+      this.state.taskPage = 0;
       this.render();
       return;
     }

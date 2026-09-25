@@ -51,4 +51,10 @@ progress = new Progression(legacyPlatform, levels, options);
 assert.equal(progress.getStars(levels[0].id), 2);
 assert.equal(progress.isUnlocked(levels[4].id), true);
 
+// A released level inserted after completed content must be available to old saves.
+const insertedLevel = { id: "city_inserted" };
+const insertedLevels = [...levels.slice(0, 3), insertedLevel, ...levels.slice(3)];
+const upgraded = new Progression(platform, insertedLevels, options);
+assert.equal(upgraded.isUnlocked(insertedLevel.id), true);
+
 console.log("progression tests: PASS");

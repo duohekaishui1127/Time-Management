@@ -64,6 +64,13 @@ class Progression {
       state.unlocked[level.id] = true;
     });
 
+    // Released levels may be inserted after a level the player already completed.
+    this.levels.forEach((level, index) => {
+      if (state.completed[level.id] && index + 1 < this.levels.length) {
+        state.unlocked[this.levels[index + 1].id] = true;
+      }
+    });
+
     this.platform.setStorage(this.options.key, state);
     return state;
   }
