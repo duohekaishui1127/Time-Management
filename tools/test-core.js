@@ -32,8 +32,8 @@ function mockCanvas() {
 }
 
 const sixTasks = levelData.levels.find((x) => x.tasks.length === 6);
-for (const height of [568, 667]) {
-  const ui = new CanvasUI(mockCanvas(), { windowWidth: 390, windowHeight: height, pixelRatio: 1 });
+for (const [width, height] of [[320, 568], [390, 568], [390, 667], [430, 844]]) {
+  const ui = new CanvasUI(mockCanvas(), { windowWidth: width, windowHeight: height, pixelRatio: 1 });
   const visible = new Set();
   for (let page = 0; page < 6; page++) {
     ui.begin();
@@ -55,11 +55,26 @@ for (const height of [568, 667]) {
   assert.equal(visible.size, sixTasks.tasks.length);
 }
 
+const levelSelectUI = new CanvasUI(mockCanvas(), { windowWidth: 320, windowHeight: 568, pixelRatio: 1 });
+levelSelectUI.begin();
+levelSelectUI.renderLevelSelect({
+  chapterTitle: "第一章 · 大学生的一天",
+  completedCount: 1,
+  totalCount: levelData.levels.length,
+  page: 0,
+  totalPages: 4,
+  levels: levelData.levels.slice(0, 10).map((level, index) => ({
+    index, level, unlocked: index < 3, completed: index === 0, stars: index === 0 ? 3 : 0, attempts: index === 0 ? 2 : 0,
+  })),
+});
+assert(levelSelectUI.hitAreas.filter((area) => area.id === "level").every((area) => area.y + area.h <= 568 - 58));
+assert(levelSelectUI.hitAreas.some((area) => area.id === "level-page-next"));
+
 const sixTaskOrder = ["deck", "demo", "sample", "passes", "drinks", "screen"];
 const sixTaskResult = simulateLevel(sixTasks, sixTaskOrder);
 assert(sixTaskResult.timeline.length > 7);
-for (const height of [568, 667]) {
-  const ui = new CanvasUI(mockCanvas(), { windowWidth: 390, windowHeight: height, pixelRatio: 1 });
+for (const [width, height] of [[320, 568], [390, 568], [390, 667]]) {
+  const ui = new CanvasUI(mockCanvas(), { windowWidth: width, windowHeight: height, pixelRatio: 1 });
   const vm = {
     result: sixTaskResult,
     description: "测试结果",
@@ -69,7 +84,19 @@ for (const height of [568, 667]) {
     nextText: "下一关",
   };
   ui.begin();
+  ui.renderGame({
+    level: sixTasks,
+    levelIndex: levelData.levels.indexOf(sixTasks),
+    chapterTitle: "测试章节",
+    selectedIds: [],
+    cardOrder: sixTasks.tasks.map((task) => task.id),
+    taskPage: 0,
+    goalLocationName: "终点",
+  });
+  assert(ui.hitAreas.some((area) => area.id === "task"));
   ui.renderResultSheet(vm);
+  assert(!ui.hitAreas.some((area) => area.id === "task"));
+  assert(ui.hitAreas.some((area) => area.id === "share" && area.y >= height * 0.16));
   assert(ui.hitAreas.some((area) => area.id === "timeline-page-next"));
   vm.timelinePage = 99;
   ui.begin();
